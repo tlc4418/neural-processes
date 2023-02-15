@@ -1,0 +1,6 @@
+numpy
+matplolib
+
+torch
+
+pre-commit
