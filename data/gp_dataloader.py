@@ -20,9 +20,6 @@ MIN_KERNEL_SCALE = 0.1
 MAX_KERNEL_SCALE = 1.0
 MIN_LENGTH_SCALE = 0.1
 MAX_LENGTH_SCALE = 0.6
-DEFAULT_KERNEL = (
-    RBF(LENGTH_SCALE, (MIN_LENGTH_SCALE, MAX_LENGTH_SCALE)) + WhiteKernel(NOISE_LEVEL)
-) * ConstantKernel(1.0, (MIN_KERNEL_SCALE, MAX_KERNEL_SCALE))
 
 
 class NPTuple(object):
@@ -82,9 +79,10 @@ class GPDataGenerator(object):
         self.testing = testing
         self.max_n_context = max_n_context
         kernel = kernel or (
-            RBF(LENGTH_SCALE, (MIN_LENGTH_SCALE, MAX_LENGTH_SCALE))
+            ConstantKernel(MAX_KERNEL_SCALE, (MIN_KERNEL_SCALE, MAX_KERNEL_SCALE))
+            * RBF(LENGTH_SCALE, (MIN_LENGTH_SCALE, MAX_LENGTH_SCALE))
             + WhiteKernel(NOISE_LEVEL, "fixed")
-        ) * ConstantKernel(1.0, (MIN_KERNEL_SCALE, MAX_KERNEL_SCALE))
+        )
         if not randomize_kernel_params:
             for p in kernel.hyperparameters:
                 kernel.set_params(**{f"{p.name}_bounds": "fixed"})
@@ -149,4 +147,11 @@ class GPDataGenerator(object):
         kernel = self.gp.kernel
         for p in kernel.hyperparameters:
             if not isinstance(p.bounds, str):
-                kernel.set_params(**{p.name: np.random.uniform(*p.bounds.squeeze())})
+                if p.name.endswith("constant_value"):
+                    kernel.set_params(
+                        **{p.name: np.square(np.random.uniform(*p.bounds.squeeze()))}
+                    )
+                else:
+                    kernel.set_params(
+                        **{p.name: np.random.uniform(*p.bounds.squeeze())}
+                    )
