@@ -50,6 +50,22 @@ class NPTuple(object):
             self.x_context, self.y_context, self.x_target, self.y_target
         )
 
+    def extend(self, others):
+        """Extend the NPTuple with another NPTuple or list of NPTuples"""
+        if not isinstance(others, list):
+            others = [others]
+        # concatenate along batch dimension
+        self.x_context = torch.cat([self.x_context] + [o.x_context for o in others])
+        self.y_context = torch.cat([self.y_context] + [o.y_context for o in others])
+        self.x_target = torch.cat([self.x_target] + [o.x_target for o in others])
+        self.y_target = torch.cat([self.y_target] + [o.y_target for o in others])
+
+    def get_rand(self):
+        """Get a random batch of data from the NPTuple"""
+
+        idx = np.random.randint(len(self))
+        return self[idx]
+
 
 class GPDataGenerator(object):
     """Generates batches of data from a Gaussian Process"""
@@ -60,6 +76,7 @@ class GPDataGenerator(object):
         kernel=None,
         randomize_kernel_params=False,
         max_n_context=MAX_N_CONTEXT,
+        fix_context=False,
         batch_size=BATCH_SIZE,
     ):
         self.testing = testing
@@ -73,12 +90,17 @@ class GPDataGenerator(object):
                 kernel.set_params(**{f"{p.name}_bounds": "fixed"})
         self.gp = GaussianProcessRegressor(kernel=kernel)
         self.randomize_kernel_params = randomize_kernel_params
+        self.fix_context = fix_context
         self.batch_size = batch_size
 
     def generate_batch(self):
         """Generate a batch of samples from the GP"""
 
-        n_context = np.random.randint(MIN_N_CONTEXT, self.max_n_context + 1)
+        n_context = (
+            self.max_n_context
+            if self.fix_context
+            else np.random.randint(MIN_N_CONTEXT, self.max_n_context + 1)
+        )
 
         # Evenly distributed x values at test time
         if self.testing:
@@ -123,6 +145,7 @@ class GPDataGenerator(object):
 
     def randomize_k_params(self):
         """Randomize kernel parameters by sampling from their bounds"""
+
         kernel = self.gp.kernel
         for p in kernel.hyperparameters:
             if not isinstance(p.bounds, str):
