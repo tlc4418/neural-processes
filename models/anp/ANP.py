@@ -37,6 +37,9 @@ class DeterministicEncoder(nn.Module):
         context = torch.cat([context_x, context_y], dim=-1)
         encoded_context = self.mlp(context)
 
+        # If basic NP
+        if self.attention.attention_type == "uniform":
+            return self.attention(context_x, target_x, encoded_context)
         q = self.pre_attention_contexts(context_x)
         k = self.pre_attention_targets(target_x)
         output = self.attention(q, k, encoded_context)

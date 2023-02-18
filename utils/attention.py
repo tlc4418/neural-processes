@@ -30,7 +30,7 @@ class Attention(torch.nn.Module):
 
     def _uniform_attention(self, k, q, v):
         n_points = q.shape[1]
-        mean = torch.mean(v, dim=1)
+        mean = torch.mean(v, dim=1, keepdim=True)
         return mean.repeat(1, n_points, 1)
 
     def _laplace_attention(self, k, q, v, scale):
