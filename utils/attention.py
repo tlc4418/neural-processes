@@ -1,5 +1,5 @@
 import torch
-from .utils import BatchLinear
+from .nn_helpers import BatchLinear
 
 
 class Attention(torch.nn.Module):

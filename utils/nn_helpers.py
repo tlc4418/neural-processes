@@ -39,16 +39,3 @@ class BatchLinear(nn.Module):
         x = x.view(-1, self.input_dim)
         x = self.linear(x)
         return x.view(batch_size, n_points, self.output_dim)
-
-
-def kl_divergence(prior_mean, prior_log_var, posterior_mean, posterior_log_var):
-    return (
-        0.5
-        * (
-            prior_log_var
-            - posterior_log_var
-            - 1
-            + (torch.exp(posterior_log_var) + (posterior_mean - prior_mean) ** 2)
-            / torch.exp(prior_log_var)
-        ).sum()
-    )

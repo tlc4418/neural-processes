@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from models.utils import BatchMLP, kl_divergence, BatchLinear
+from utils import BatchMLP, BatchLinear, gaussian_log_prob, kl_divergence
 
 
 class DeterministicEncoder(nn.Module):
@@ -69,12 +69,12 @@ class LatentEncoder(nn.Module):
         context = torch.cat([context_x, context_y], dim=-1)
         encoded_context = self.mlp(context)
         hidden = torch.relu(self.hidden(torch.mean(encoded_context, dim=1)))
-        output_mean = self.mean(hidden)
+        mean = self.mean(hidden)
         log_var = self.log_var(hidden)
 
         # Reparameterization trick
-        z = output_mean + torch.randn_like(log_var) * torch.exp(log_var * 0.5)
-        return z, output_mean, log_var
+        z = mean + torch.randn_like(log_var) * torch.exp(log_var * 0.5)
+        return z, mean, log_var
 
 
 class Decoder(nn.Module):
@@ -150,11 +150,12 @@ class ANPModel(nn.Module):
         mean, std = self.decoder(common_representation, target_x)
 
         if target_y is not None:
-            log_prob = torch.distributions.Normal(mean, std).log_prob(target_y)
+            log_prob = gaussian_log_prob(mean, std, target_y)
             kl = kl_divergence(
                 prior_mean, prior_log_var, posterior_mean, posterior_log_var
             )
-            loss = -torch.mean(log_prob) + kl
+            # Negative ELBO
+            loss = -(log_prob - kl)
         else:
             log_prob = None
             kl = None
