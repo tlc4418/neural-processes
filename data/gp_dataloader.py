@@ -63,6 +63,11 @@ class NPTuple(object):
         idx = np.random.randint(len(self))
         return self[idx]
 
+    def get_all(self):
+        """Get all data from the NPTuple"""
+
+        return self[:]
+
 
 class GPDataGenerator(object):
     """Generates batches of data from a Gaussian Process"""
@@ -125,7 +130,7 @@ class GPDataGenerator(object):
             if self.randomize_kernel_params:
                 self.randomize_k_params()
             targets.append(torch.from_numpy(self.gp.sample_y(x_values[i], n_samples=1)))
-        targets = torch.stack(targets).squeeze(-1)
+        targets = torch.stack(targets).float()
 
         # Randomly select context points
         idx = torch.randperm(x_values.shape[1])
