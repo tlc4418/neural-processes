@@ -6,15 +6,14 @@ import matplotlib.pyplot as plt
 X_EVEN_SPREAD = torch.linspace(-2, 2, 400).unsqueeze(-1)
 
 
-def plot_np_results(
-    target_x, target_y, context_x, context_y, pred_y, std, n=1, title=None
-):
+def plot_np_results(target_x, target_y, context_x, context_y, pred_y, std, title=None):
+    fig = plt.figure()
     plt.plot(
         target_x, pred_y, linewidth=2, alpha=0.7, zorder=1, label="Predictive mean"
     )
     plt.plot(target_x, target_y, "k:", linewidth=1, label="Target")
     plt.scatter(context_x, context_y, c="k", zorder=2, label="Context")
-    bound = std.squeeze() * 1.96
+    bound = std.squeeze()  # * 1.96
     plt.fill_between(
         target_x.squeeze(),
         pred_y.squeeze() - bound,
@@ -55,3 +54,19 @@ def plot_gp_curves(gp, np_tuple, n=1, title=None):
         plt.suptitle(title)
     plt.tight_layout()
     plt.show()
+
+
+def plot_losses(losses_hist, freq):
+    f, ax = plt.subplots(len(losses_hist))
+    for i, key in enumerate(losses_hist.keys()):
+        ax[i].set_xlabel("Epochs")
+        ax[i].set_ylabel("Loss")
+        ax[i].plot(
+            [x * freq for x in range(len(losses_hist[key]))],
+            losses_hist[key],
+            label=key,
+        )
+        ax[i].legend()
+    plt.tight_layout()
+    f.savefig("train_losses.png")
+    plt.close()

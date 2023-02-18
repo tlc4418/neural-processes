@@ -1,6 +1,9 @@
 # Saved python models, uncomment to push trained models
 *.pt
 
+# Images, uncomment to push images
+*.png
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
