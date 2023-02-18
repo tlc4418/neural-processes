@@ -1,1 +1,1 @@
-from .gp_dataloader import GPDataLoader, NPTuple
+from .gp_dataloader import GPDataGenerator, NPTuple
