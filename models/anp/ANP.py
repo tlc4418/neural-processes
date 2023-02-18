@@ -63,18 +63,21 @@ class LatentEncoder(nn.Module):
         self.latent_dim = latent_dim
         self.hidden = nn.Linear(hidden_dim, hidden_dim)
         self.mean = nn.Linear(hidden_dim, latent_dim)
-        self.log_var = nn.Linear(hidden_dim, latent_dim)
+        self.log_std = nn.Linear(hidden_dim, latent_dim)
 
     def forward(self, context_x, context_y):
         context = torch.cat([context_x, context_y], dim=-1)
         encoded_context = self.mlp(context)
         hidden = torch.relu(self.hidden(torch.mean(encoded_context, dim=1)))
         mean = self.mean(hidden)
-        log_var = self.log_var(hidden)
+        log_std = self.log_std(hidden)
+
+        # Bound and sigmoid
+        std = 0.1 + 0.9 * torch.sigmoid(log_std)
 
         # Reparameterization trick
-        z = mean + torch.randn_like(log_var) * torch.exp(log_var * 0.5)
-        return z, mean, log_var
+        z = mean + torch.randn_like(std) * std
+        return z, mean, std
 
 
 class Decoder(nn.Module):
@@ -89,16 +92,16 @@ class Decoder(nn.Module):
         for _ in range(n_mlp_layers - 1):
             self.layers.append(BatchLinear(hidden_dim, hidden_dim))
             self.layers.append(nn.ReLU())
+        self.layers.append(BatchLinear(hidden_dim, 2 * y_dim))
         self.mlp = nn.Sequential(*self.layers)
-        # Create prediction layer
-        self.predict = BatchLinear(hidden_dim, 2 * y_dim)
 
     def forward(self, representation, target_x):
         merge = torch.cat([representation, target_x], dim=-1)
         encoded_merge = self.mlp(merge)
-        prediction = self.predict(encoded_merge)
-        mean, std = torch.split(prediction, prediction.shape[-1] // 2, dim=-1)
-        std = nn.functional.softplus(std)
+        mean, std = torch.split(encoded_merge, encoded_merge.shape[-1] // 2, dim=-1)
+
+        # Bound and sigmoid std
+        std = 0.1 + 0.9 * torch.sigmoid(std)
         return mean, std
 
 
