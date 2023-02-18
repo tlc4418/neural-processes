@@ -90,19 +90,16 @@ class Decoder(nn.Module):
             self.layers.append(BatchLinear(hidden_dim, hidden_dim))
             self.layers.append(nn.ReLU())
         self.mlp = nn.Sequential(*self.layers)
-        # Create mean and std layers
-        self.mean = BatchLinear(hidden_dim, y_dim)
-        self.std = BatchLinear(hidden_dim, y_dim)
+        # Create prediction layer
+        self.predict = BatchLinear(hidden_dim, 2 * y_dim)
 
     def forward(self, representation, target_x):
         merge = torch.cat([representation, target_x], dim=-1)
         encoded_merge = self.mlp(merge)
-        mean = self.mean(encoded_merge)
-        std = nn.Softplus()(self.std(encoded_merge))
-
-        # Reparameterization trick
-        pred = mean + torch.randn_like(std) * std
-        return pred, std
+        prediction = self.predict(encoded_merge)
+        mean, std = torch.split(prediction, prediction.shape[-1] // 2, dim=-1)
+        std = nn.functional.softplus(std)
+        return mean, std
 
 
 class ANPModel(nn.Module):
@@ -150,17 +147,17 @@ class ANPModel(nn.Module):
         r = self.deterministic_encoder(context_x, context_y, target_x)
         common_representation = torch.cat([r, z], dim=-1)
 
-        pred, std = self.decoder(common_representation, target_x)
+        mean, std = self.decoder(common_representation, target_x)
 
         if target_y is not None:
-            mse = nn.MSELoss()(pred, target_y)
+            log_prob = torch.distributions.Normal(mean, std).log_prob(target_y)
             kl = kl_divergence(
                 prior_mean, prior_log_var, posterior_mean, posterior_log_var
             )
-            loss = mse + kl
+            loss = -torch.mean(log_prob) + kl
         else:
-            mse = None
+            log_prob = None
             kl = None
             loss = None
 
-        return pred, std, loss, mse, kl
+        return mean, std, loss, log_prob, kl
