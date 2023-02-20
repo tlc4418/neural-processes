@@ -1,17 +1,11 @@
 import torch
+from torch.distributions import Normal
 
 
-def kl_divergence(prior_mean, prior_log_var, posterior_mean, posterior_log_var):
-    return (
-        0.5
-        * (
-            prior_log_var
-            - posterior_log_var
-            - 1
-            + (torch.exp(posterior_log_var) + (posterior_mean - prior_mean) ** 2)
-            / torch.exp(prior_log_var)
-        ).sum()
-    )
+def kl_divergence(prior_mean, prior_std, posterior_mean, posterior_std):
+    return torch.distributions.kl.kl_divergence(
+        Normal(prior_mean, prior_std), Normal(posterior_mean, posterior_std)
+    ).sum()
 
 
 def gaussian_log_prob(mean, std, x, reduction="mean"):

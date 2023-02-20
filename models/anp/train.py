@@ -2,12 +2,33 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from data.gp_dataloader import GPDataGenerator
-from utils import plot_np_results
-
+from utils import plot_np_results, plot_losses
+from collections import deque
+from statistics import mean
 
 # Set the random seed for reproducibility
 torch.manual_seed(1)
 np.random.seed(1)
+
+RUNNING_AVG_LEN = 100
+PLOT_FREQ = 500
+
+
+def train_single_epoch(model, optimizer, train_gen, device):
+    model.train()
+    context_x, context_y, target_x, target_y = prepare_data(train_gen, device)
+    optimizer.zero_grad()
+    _, _, loss, log_prob, kl = model(context_x, context_y, target_x, target_y)
+    loss.backward()
+    optimizer.step()
+    return loss.item(), log_prob.item(), kl.item()
+
+
+def evaluate(model, test_gen, device):
+    model.eval()
+    context_x, context_y, target_x, target_y = prepare_data(test_gen, device)
+    pred_y, std, loss, _, _ = model(context_x, context_y, target_x, target_y)
+    return target_x, target_y, context_x, context_y, pred_y, std, loss.item()
 
 
 def train_1d(
@@ -21,23 +42,27 @@ def train_1d(
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
+    # Keep track of running average losses for plotting
+    losses_hist = {"NLL": [], "KL": []}
+    running_nll = deque(maxlen=RUNNING_AVG_LEN)
+    running_kl = deque(maxlen=RUNNING_AVG_LEN)
     for epoch in range(epochs):
-        model.train()
-        context_x, context_y, target_x, target_y = prepare_data(train_gen, device)
+        loss, log_prob, kl = train_single_epoch(model, optimizer, train_gen, device)
+        running_nll.append(-log_prob)
+        running_kl.append(kl)
 
-        optimizer.zero_grad()
-        pred_y, std, loss, _, _ = model(context_x, context_y, target_x, target_y)
-        loss.backward()
-        optimizer.step()
+        if epoch % RUNNING_AVG_LEN == 0:
+            losses_hist["NLL"].append(mean(running_nll))
+            losses_hist["KL"].append(mean(running_kl))
+            plot_losses(losses_hist, RUNNING_AVG_LEN)
 
         if epoch % 500 == 0:
-            model.eval()
-            context_x, context_y, target_x, target_y = prepare_data(test_gen, device)
-            pred_y, std, loss, _, _ = model(context_x, context_y, target_x, target_y)
+            target_x, target_y, context_x, context_y, pred_y, std, loss = evaluate(
+                model, test_gen, device
+            )
             plot_np_results(
                 *prepare_plot([target_x, target_y, context_x, context_y, pred_y, std]),
-                n=3,
-                title=f"Epoch: {epoch} Loss: {loss.item():.4f}",
+                title=f"Epoch: {epoch} Loss: {loss:.4f}",
             )
             torch.save(
                 {
