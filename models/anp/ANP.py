@@ -1,6 +1,7 @@
 import torch
 from torch import nn
-from utils import BatchMLP, BatchLinear, gaussian_log_prob, kl_divergence
+from torch.distributions import Normal, Independent
+from utils import BatchMLP, BatchLinear, gaussian_log_prob, kl_div
 
 
 class DeterministicEncoder(nn.Module):
@@ -38,7 +39,7 @@ class DeterministicEncoder(nn.Module):
         encoded_context = self.mlp(context)
 
         # If basic NP
-        if self.attention.attention_type == "uniform":
+        if self.attention.attention_type in ["uniform", "laplace"]:
             return self.attention(context_x, target_x, encoded_context)
         q = self.pre_attention_contexts(context_x)
         k = self.pre_attention_targets(target_x)
@@ -104,8 +105,10 @@ class Decoder(nn.Module):
         mean, std = torch.split(encoded_merge, encoded_merge.shape[-1] // 2, dim=-1)
 
         # Bound and sigmoid std
-        std = 0.1 + 0.9 * torch.sigmoid(std)
-        return mean, std
+        std = 0.1 + 0.9 * torch.nn.functional.softplus(std)
+
+        distrib = Independent(Normal(loc=mean, scale=std), 1)
+        return mean, std, distrib
 
 
 class ANPModel(nn.Module):
@@ -153,15 +156,13 @@ class ANPModel(nn.Module):
         r = self.deterministic_encoder(context_x, context_y, target_x)
         common_representation = torch.cat([r, z], dim=-1)
 
-        mean, std = self.decoder(common_representation, target_x)
+        mean, std, distrib = self.decoder(common_representation, target_x)
 
         if target_y is not None:
-            log_prob = gaussian_log_prob(mean, std, target_y)
-            kl = kl_divergence(
-                prior_mean, prior_log_var, posterior_mean, posterior_log_var
-            )
+            log_prob = gaussian_log_prob(distrib, target_y)
+            kl = kl_div(prior_mean, prior_log_var, posterior_mean, posterior_log_var)
             # Negative ELBO
-            loss = -(log_prob - kl)
+            loss = -(log_prob - kl / float(target_x.shape[1]))
         else:
             log_prob = None
             kl = None
