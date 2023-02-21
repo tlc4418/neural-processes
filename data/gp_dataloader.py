@@ -13,7 +13,7 @@ MAX_N_CONTEXT = 100
 LENGTH_SCALE = 0.4
 TEST_N_TARGET = 400
 BATCH_SIZE = 16
-NOISE_LEVEL = 2e-2**2
+NOISE_LEVEL = (2e-2) ** 2
 
 # ANP random kernel bounds
 MIN_KERNEL_SCALE = 0.1
@@ -91,7 +91,7 @@ class GPDataGenerator(object):
         if not randomize_kernel_params:
             for p in kernel.hyperparameters:
                 kernel.set_params(**{f"{p.name}_bounds": "fixed"})
-        self.gp = GaussianProcessRegressor(kernel=kernel)
+        self.gp = GaussianProcessRegressor(kernel=kernel, alpha=0.0)
         self.randomize_kernel_params = randomize_kernel_params
         self.fix_context = fix_context
         self.batch_size = batch_size
@@ -129,7 +129,11 @@ class GPDataGenerator(object):
             # Randomize kernel if needed for experiment
             if self.randomize_kernel_params:
                 self.randomize_k_params()
-            targets.append(torch.from_numpy(self.gp.sample_y(x_values[i], n_samples=1)))
+            targets.append(
+                torch.from_numpy(
+                    self.gp.sample_y(x_values[i], n_samples=1, random_state=None)
+                )
+            )
         targets = torch.stack(targets).float()
 
         # Randomly select context points
