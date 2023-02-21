@@ -11,7 +11,7 @@ torch.manual_seed(1)
 np.random.seed(1)
 
 RUNNING_AVG_LEN = 100
-PLOT_FREQ = 500
+PLOT_FREQ = 10000
 
 
 def train_single_epoch(model, optimizer, train_gen, device):
@@ -56,7 +56,7 @@ def train_1d(
             losses_hist["KL"].append(mean(running_kl))
             plot_losses(losses_hist, RUNNING_AVG_LEN)
 
-        if epoch % 500 == 0:
+        if epoch % PLOT_FREQ == 0:
             target_x, target_y, context_x, context_y, pred_y, std, loss = evaluate(
                 model, test_gen, device
             )
