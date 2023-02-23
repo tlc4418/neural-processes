@@ -129,11 +129,7 @@ class GPDataGenerator(object):
             # Randomize kernel if needed for experiment
             if self.randomize_kernel_params:
                 self.randomize_k_params()
-            targets.append(
-                torch.from_numpy(
-                    self.gp.sample_y(x_values[i], n_samples=1, random_state=None)
-                )
-            )
+            targets.append(self._attempt_sample(x_values, i))
         targets = torch.stack(targets).float()
 
         # Randomly select context points
@@ -164,3 +160,28 @@ class GPDataGenerator(object):
                     kernel.set_params(
                         **{p.name: np.random.uniform(*p.bounds.squeeze())}
                     )
+
+    def _attempt_sample(self, x_values, idx, n_attempts=10):
+        """
+        Attempt to sample from the GP, if SVD does not converge,
+        try again with different x values
+        """
+
+        for _ in range(n_attempts):
+            try:
+                sample = torch.from_numpy(
+                    self.gp.sample_y(x_values[idx], n_samples=1, random_state=None)
+                )
+            except np.linalg.LinAlgError:
+                x_values[idx] = (
+                    torch.rand(x_values.shape[1], 1) * (MAX_X - MIN_X) + MIN_X
+                )
+                x_values[idx] = torch.sort(x_values[idx], dim=0)[0]
+                continue
+            else:
+                return sample
+        else:
+            raise np.linalg.LinAlgError(
+                f"Could not sample from GP after {n_attempts} attempts, "
+                "SVD did not converge."
+            )
