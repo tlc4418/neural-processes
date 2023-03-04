@@ -57,7 +57,8 @@ def plot_gp_curves(gp, np_tuple, n=1, title=None):
 
 
 def plot_losses(losses_hist, freq):
-    f, ax = plt.subplots(len(losses_hist))
+    f, ax = plt.subplots(len(losses_hist), squeeze=False)
+    ax = ax.squeeze(axis=1)
     for i, key in enumerate(losses_hist.keys()):
         ax[i].set_xlabel("Epochs")
         ax[i].set_ylabel("Loss")
