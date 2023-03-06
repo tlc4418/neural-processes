@@ -9,8 +9,8 @@ from utils import plot_np_results
 
 
 # Set the random seed for reproducibility
-torch.manual_seed(1)
-np.random.seed(1)
+# torch.manual_seed(1)
+# np.random.seed(1)
 
 plot_freq= 10000
 
@@ -80,6 +80,8 @@ def train_2d(
     model_name,
     train_loader,
     val_loader,
+    a,
+    b,
     epochs=50,
     report_interval=400,
 ):
@@ -87,7 +89,7 @@ def train_2d(
     print(f"Using device: {device}")
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
-    masker = GetBatchMask(a=0.0, b=0.3)
+    masker = GetBatchMask(a=a, b=b)
     def train_one_epoch(epoch):
         running_loss = 0.0
         last_loss = 0.0
@@ -122,7 +124,7 @@ def train_2d(
             for idx, (data, _) in enumerate(val_loader):
                 
                 data=data.to(device)
-                mask = masker(data.shape[0], (data.shape[2], data.shape[3]), is_same_mask=True)
+                mask = masker(data.shape[0], (data.shape[2], data.shape[3]))
                 mask = mask.to(device)
                 pred_y_val, std_val, val_loss = model(data, mask)
                 running_val_loss += val_loss
