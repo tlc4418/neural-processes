@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from torch.distributions import Normal, Independent
-from utils import BatchMLP, BatchLinear, gaussian_log_prob, kl_div
+from utils import BatchMLP, BatchLinear, gaussian_log_prob, kl_div, Attention
 
 
 class DeterministicEncoder(nn.Module):
@@ -11,16 +11,16 @@ class DeterministicEncoder(nn.Module):
         self,
         x_dim,
         y_dim,
-        attention,
         hidden_dim,
-        decoder_mlp_layers=4,
+        attention=Attention("uniform"),
+        n_mlp_layers=4,
         pre_attention_layers=2,
     ):
         super(DeterministicEncoder, self).__init__()
         self.mlp = BatchMLP(
             x_dim + y_dim,
             hidden_dim,
-            decoder_mlp_layers,
+            n_mlp_layers,
         )
         self.attention = attention
         self.pre_attention_contexts = BatchMLP(
@@ -87,11 +87,11 @@ class LatentEncoder(nn.Module):
 class Decoder(nn.Module):
     """Decoder for Neural Processes"""
 
-    def __init__(self, x_dim, y_dim, latent_dim, hidden_dim, n_mlp_layers=2):
+    def __init__(self, x_dim, y_dim, hidden_dim, latent_dim=0, n_mlp_layers=2):
         super(Decoder, self).__init__()
         # Create MLP
         self.layers = nn.ModuleList()
-        self.layers.append(BatchLinear(2 * latent_dim + x_dim, hidden_dim))
+        self.layers.append(BatchLinear(hidden_dim + latent_dim + x_dim, hidden_dim))
         self.layers.append(nn.ReLU())
         for _ in range(n_mlp_layers - 1):
             self.layers.append(BatchLinear(hidden_dim, hidden_dim))
@@ -140,7 +140,7 @@ class ANPModel(nn.Module):
             hidden_dim,
             latent_encoder_layers,
         )
-        self.decoder = Decoder(x_dim, y_dim, latent_dim, hidden_dim, decoder_layers)
+        self.decoder = Decoder(x_dim, y_dim, hidden_dim, latent_dim, decoder_layers)
 
     def forward(self, context_x, context_y, target_x, target_y=None):
         prior, prior_mean, prior_log_var = self.latent_encoder(context_x, context_y)
