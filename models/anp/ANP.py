@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch.distributions import Normal, Independent
 from utils import BatchMLP, BatchLinear, gaussian_log_prob, kl_div
+from utils.attention import SelfAttention
 
 
 class DeterministicEncoder(nn.Module):
@@ -15,6 +16,7 @@ class DeterministicEncoder(nn.Module):
         hidden_dim,
         decoder_mlp_layers=4,
         pre_attention_layers=2,
+        use_self_attention=False,
     ):
         super(DeterministicEncoder, self).__init__()
         self.mlp = BatchMLP(
@@ -33,10 +35,17 @@ class DeterministicEncoder(nn.Module):
             hidden_dim,
             pre_attention_layers,
         )
+        self.use_self_attention = use_self_attention
+        if self.use_self_attention:
+            self.self_attention = SelfAttention(hidden_dim)
 
     def forward(self, context_x, context_y, target_x):
         context = torch.cat([context_x, context_y], dim=-1)
         encoded_context = self.mlp(context)
+
+        # self-attention
+        if self.use_self_attention:
+            encoded_context = self.self_attention(encoded_context)
 
         # If basic NP
         if self.attention.attention_type in ["uniform", "laplace"]:
@@ -57,6 +66,7 @@ class LatentEncoder(nn.Module):
         latent_dim,
         hidden_dim,
         n_mlp_layers=4,
+        use_self_attention=False,
     ):
         super(LatentEncoder, self).__init__()
         self.mlp = BatchMLP(
@@ -68,10 +78,18 @@ class LatentEncoder(nn.Module):
         self.hidden = nn.Linear(hidden_dim, hidden_dim)
         self.mean = nn.Linear(hidden_dim, latent_dim)
         self.log_std = nn.Linear(hidden_dim, latent_dim)
+        self.use_self_attention = use_self_attention
+        if use_self_attention:
+            self.self_attention = SelfAttention(hidden_dim)
 
     def forward(self, context_x, context_y):
         context = torch.cat([context_x, context_y], dim=-1)
         encoded_context = self.mlp(context)
+
+        # self-attention
+        if self.use_self_attention:
+            encoded_context = self.self_attention(encoded_context)
+
         hidden = torch.relu(self.hidden(torch.mean(encoded_context, dim=1)))
         mean = self.mean(hidden)
         log_std = self.log_std(hidden)
@@ -124,6 +142,7 @@ class ANPModel(nn.Module):
         latent_encoder_layers=4,
         deterministic_encoder_layers=4,
         decoder_layers=2,
+        use_self_attention=False,
     ):
         super(ANPModel, self).__init__()
         self.deterministic_encoder = DeterministicEncoder(
@@ -132,6 +151,7 @@ class ANPModel(nn.Module):
             attention,
             hidden_dim,
             deterministic_encoder_layers,
+            use_self_attention,
         )
         self.latent_encoder = LatentEncoder(
             x_dim,
@@ -139,6 +159,7 @@ class ANPModel(nn.Module):
             latent_dim,
             hidden_dim,
             latent_encoder_layers,
+            use_self_attention,
         )
         self.decoder = Decoder(x_dim, y_dim, latent_dim, hidden_dim, decoder_layers)
 
@@ -168,4 +189,4 @@ class ANPModel(nn.Module):
             kl = None
             loss = None
 
-        return mean, std, loss, log_prob, kl
+        return distrib, mean, std, loss, log_prob, kl
