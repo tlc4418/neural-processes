@@ -11,7 +11,7 @@ torch.manual_seed(1)
 np.random.seed(1)
 
 RUNNING_AVG_LEN = 100
-PLOT_FREQ = 10000
+PLOT_FREQ = 200
 
 
 def train_single_epoch(model, optimizer, train_gen, device):
@@ -21,7 +21,7 @@ def train_single_epoch(model, optimizer, train_gen, device):
     _, _, loss, log_prob, kl = model(context_x, context_y, target_x, target_y)
     loss.backward()
     optimizer.step()
-    return loss.item(), log_prob.item(), kl.item() if kl else None
+    return loss.item(), log_prob.item(), kl.item() if torch.is_tensor(kl) else None
 
 
 def evaluate(model, test_gen, device):
@@ -77,7 +77,7 @@ def train_1d(
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                 },
-                "model.pt",
+                "model_test.pt",
             )
 
 
