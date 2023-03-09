@@ -129,8 +129,8 @@ class ANPModel(nn.Module):
         self.deterministic_encoder = DeterministicEncoder(
             x_dim,
             y_dim,
-            attention,
             hidden_dim,
+            attention,
             deterministic_encoder_layers,
         )
         self.latent_encoder = LatentEncoder(
