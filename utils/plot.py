@@ -1,6 +1,6 @@
 import torch
 import matplotlib.pyplot as plt
-
+from data.image_dataloader import get_masks
 
 # For nice visualizations
 X_EVEN_SPREAD = torch.linspace(-2, 2, 400).unsqueeze(-1)
@@ -23,6 +23,57 @@ def plot_np_results(target_x, target_y, context_x, context_y, pred_y, std, title
     plt.legend()
     if title:
         plt.title(title)
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_2d_np_results(data):
+    columns = len(data)
+    rows = 3
+    # create suplots
+    fig, axs = plt.subplots(rows, columns, figsize=(columns * 3, rows * 3))
+
+    for c in range(columns):
+        context_x, context_y, target_x, mean, std, img_size = data[c]
+        context_mask = get_masks(context_x, context_y, img_size)[1][0]
+        mean_mask = get_masks(target_x, mean, img_size)[1][0]
+        std_mask = get_masks(target_x, std, img_size)[1][0]
+
+        # Plot context in first row
+        axs[0][c].imshow(
+            context_mask.detach().cpu().numpy(),
+            cmap=("Blues_r" if c < columns - 1 else "gray"),
+        )
+
+        # # Plot 3 samples from posterior
+        # samples = distrib.sample_n(3)
+        # for i in range(3):
+        #     axs[i + 1][c] = plt.imshow(samples[i][0].reshape((mask.shape[0], mask.shape[1])), cmap="grey")
+
+        # Plot mean
+        axs[1][c].imshow(
+            mean_mask.detach().cpu().numpy(),
+            cmap="gray",
+        )
+
+        # Plot std
+        axs[2][c].imshow(
+            std_mask.detach().cpu().numpy(),
+            cmap="gray",
+        )
+
+        # Remove ticks
+        for r in range(rows):
+            axs[r][c].set_xticks([])
+            axs[r][c].set_yticks([])
+
+    # Set titles
+    for i, t in enumerate(["Context", "Mean", "Std"]):
+        axs[i][0].set_ylabel(t, size="large")
+    for i, d in enumerate(data):
+        axs[0][i].set_title(d[0].shape[1], size="large")
+
+    plt.suptitle("Number of context points")
     plt.tight_layout()
     plt.show()
 
@@ -56,14 +107,15 @@ def plot_gp_curves(gp, np_tuple, n=1, title=None):
     plt.show()
 
 
-def plot_losses(losses_hist, freq):
+def plot_losses(losses_hist):
     f, ax = plt.subplots(len(losses_hist))
     for i, key in enumerate(losses_hist.keys()):
-        ax[i].set_xlabel("Epochs")
+        freq, losses = losses_hist[key]
+        ax[i].set_xlabel("Iterations")
         ax[i].set_ylabel("Loss")
         ax[i].plot(
-            [x * freq for x in range(len(losses_hist[key]))],
-            losses_hist[key],
+            [x * freq for x in range(len(losses))],
+            losses,
             label=key,
         )
         ax[i].legend()
