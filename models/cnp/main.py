@@ -8,7 +8,7 @@ if __name__ == "__main__":
     MAX_CONTEXT_POINTS = 10
 
     # Defining model
-    model = CNPModel()
+    model = CNPModel(hidden_dim=512)
 
     train_gen = GPDataGenerator(batch_size=64, max_n_context=MAX_CONTEXT_POINTS)
     test_gen = GPDataGenerator(

@@ -1,8 +1,9 @@
+import json
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from data.gp_dataloader import GPDataGenerator
-from utils import plot_np_results, plot_losses
+from utils import plot_np_results, plot_losses, alt_plot_np_results
 from collections import deque
 from statistics import mean
 
@@ -38,9 +39,9 @@ def train_1d(
     test_gen=GPDataGenerator(testing=True, batch_size=1),
     uses_kl=True,
 ):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    if torch.backends.mps.is_available():
-        device = torch.device("mps")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # if torch.backends.mps.is_available():
+    #     device = torch.device("mps")
     print(f"Using device: {device}")
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
@@ -52,7 +53,7 @@ def train_1d(
         running_kl = deque(maxlen=RUNNING_AVG_LEN)
     running_nll = deque(maxlen=RUNNING_AVG_LEN)
 
-    for epoch in range(epochs):
+    for epoch in range(epochs+1):
         loss, log_prob, kl = train_single_epoch(model, optimizer, train_gen, device)
         running_nll.append(-log_prob)
         if uses_kl:
@@ -63,21 +64,25 @@ def train_1d(
             if uses_kl:
                 losses_hist["KL"].append(mean(running_kl))
             plot_losses(losses_hist, RUNNING_AVG_LEN)
+            with open("losses_hist.json", "w", encoding="utf-8") as f:
+                json.dump(losses_hist, f, ensure_ascii=False, indent=4)
 
         if epoch % PLOT_FREQ == 0:
             target_x, target_y, context_x, context_y, pred_y, std, loss = evaluate(
                 model, test_gen, device
             )
-            plot_np_results(
+            print(f"Epoch: {epoch}; Loss: {loss:.4f}")
+            alt_plot_np_results(
                 *prepare_plot([target_x, target_y, context_x, context_y, pred_y, std]),
                 title=f"Epoch: {epoch} Loss: {loss:.4f}",
+                filename=f"np_result_{epoch}.png"
             )
             torch.save(
                 {
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                 },
-                "model.pt",
+                f"model_{epoch}.pt",
             )
 
 
