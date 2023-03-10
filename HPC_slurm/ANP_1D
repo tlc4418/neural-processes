@@ -1,0 +1,40 @@
+#!/bin/bash
+#SBATCH -A MLMI-CRSid-SL2-GPU
+#SBATCH -J anp_1d
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --gres=gpu:1
+#SBATCH --time=03:00:00
+#SBATCH --mail-type=ALL
+#! Uncomment this to prevent the job from being requeued (e.g. if
+#! interrupted by node failure or system downtime):
+##SBATCH --no-requeue
+#SBATCH -p ampere
+#! ############################################################
+
+. /etc/profile.d/modules.sh
+module purge
+module load rhel8/default-amp
+
+###################
+
+JOBID=$SLURM_JOB_ID
+WDIR=/rds/user/CRSid/hpc-work/MLMI4
+LOG=log.out
+
+source $WDIR/mlmi4_env/bin/activate
+export PYTHONPATH="$WDIR/neural-processes"
+
+cd $WDIR
+
+mkdir -p anp_1d_$JOBID/
+
+cd $WDIR/anp_1d_$JOBID
+
+echo -e "JobID: $JOBID\n======" > $LOG
+echo "Time: `date`" >> $LOG
+echo "Running on master node: `hostname`" >> $LOG
+
+python -u $WDIR/neural-processes/models/anp/main.py >> $LOG
+
+echo "Time: `date`" >> $LOG

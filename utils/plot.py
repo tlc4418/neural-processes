@@ -96,7 +96,7 @@ def plot_losses(losses_hist, freq):
 
     fig, ax = plt.subplots(len(losses_hist), squeeze=False)
     fig.set_size_inches(10, 6)
-    plt.grid()
+
     ax = ax.squeeze(axis=1)
     for i, key in enumerate(losses_hist.keys()):
         ax[i].set_xlabel("Epochs", fontsize=20)
@@ -111,6 +111,7 @@ def plot_losses(losses_hist, freq):
             linewidth=2,
         )
         ax[i].tick_params(axis="both", which="major", labelsize=14)
+        ax[i].grid()
         leg = ax[i].legend()
         plt.setp(leg.texts, fontsize=14)
 

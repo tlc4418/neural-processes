@@ -22,7 +22,7 @@ def train_single_epoch(model, optimizer, train_gen, device):
     _, _, loss, log_prob, kl = model(context_x, context_y, target_x, target_y)
     loss.backward()
     optimizer.step()
-    return loss.item(), log_prob.item(), kl.item() if kl else None
+    return loss.item(), log_prob.item(), kl.item() if torch.is_tensor(kl) else None
 
 
 def evaluate(model, test_gen, device):

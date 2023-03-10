@@ -7,8 +7,8 @@ from utils import Attention
 if __name__ == "__main__":
 
     # Set the random seed for reproducibility
-    torch.manual_seed(1)
-    np.random.seed(1)
+    torch.manual_seed(2)
+    np.random.seed(2)
 
     # Randomized kernel parameters
     train_gen = GPDataGenerator(max_n_context=50, randomize_kernel_params=True)
