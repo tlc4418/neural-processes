@@ -1,19 +1,24 @@
 import torch
+import torch.nn as nn
 from .nn_helpers import BatchLinear
 
 
-class Attention(torch.nn.Module):
+class Attention(nn.Module):
     """Attention mechanism for Neural Processes"""
 
     def __init__(self, attention_type="dot", n_heads=8, embed_dim=128, scale=1.0):
         super(Attention, self).__init__()
         self.attention_type = attention_type
-        if self.attention_type == "multihead":
+        if self.attention_type in ["multihead", "transformer"]:
             self.n_heads = n_heads
             self.key_weights = BatchLinear(embed_dim, embed_dim)
             self.query_weights = BatchLinear(embed_dim, embed_dim)
             self.value_weights = BatchLinear(embed_dim, embed_dim)
             self.combine_heads = BatchLinear(embed_dim, embed_dim)
+        if self.attention_type == "transformer":
+            self.mlp = nn.ReLU(BatchLinear(embed_dim, embed_dim))
+            self.layer_norm1 = nn.LayerNorm(embed_dim)
+            self.layer_norm2 = nn.LayerNorm(embed_dim)
         self.scale = scale
 
     def forward(self, k, q, r):
@@ -25,6 +30,8 @@ class Attention(torch.nn.Module):
             return self._dot_attention(k, q, r)
         elif self.attention_type == "multihead":
             return self._multihead_attention(k, q, r)
+        elif self.attention_type == "transformer":
+            return self._transformer(k, q, r)
         else:
             raise ValueError("Attention type not supported")
 
@@ -60,6 +67,12 @@ class Attention(torch.nn.Module):
         weights = self._reshape_from_heads(weights)
         return self.combine_heads(weights)
 
+    def _transformer(self, k, q, v):
+        mha = self._multihead_attention(k, q, v)
+        residual = self.layer_norm1(mha + q)
+        output = self.layer_norm2(self.mlp(residual) + residual)
+        return output
+
     def _reshape_with_heads(self, x):
         """Reshape x to (batch_size * n_heads, -1, embed_dim // num_heads)"""
         x = x.reshape(x.shape[0], x.shape[1], self.n_heads, -1)
@@ -71,3 +84,18 @@ class Attention(torch.nn.Module):
         x = x.reshape(-1, self.n_heads, x.shape[1], x.shape[2])
         x = x.permute(0, 2, 1, 3)
         return x.reshape(x.shape[0], x.shape[1], -1)
+
+
+class SelfAttention(nn.Module):
+    """Self-attention layer for Neural Processes"""
+
+    def __init__(self, embed_dim=128, n_layers=2, n_heads=8):
+        super(SelfAttention, self).__init__()
+        self.attention = nn.ModuleList()
+        for _ in range(n_layers):
+            self.attention.append(Attention("transformer", n_heads, embed_dim))
+
+    def forward(self, x):
+        for attention in self.attention:
+            x = attention(x, x, x)
+        return x

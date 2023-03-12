@@ -108,6 +108,7 @@ class GPDataGenerator(object):
         # Evenly distributed x values at test time
         if self.testing:
             n_target = TEST_N_TARGET
+            n_total = n_target
             x_values = (
                 torch.linspace(-2, 2, n_target)
                 .unsqueeze(0)
@@ -117,20 +118,18 @@ class GPDataGenerator(object):
         # Random x values at train time
         else:
             n_target = np.random.randint(0, self.max_n_context - n_context + 1)
-            x_values = (
-                torch.rand(self.batch_size, n_context + n_target, 1) * (MAX_X - MIN_X)
-                + MIN_X
-            )
+            n_total = n_context + n_target
+            x_values = torch.rand(self.batch_size, n_total, 1) * (MAX_X - MIN_X) + MIN_X
 
         # Sample GP targets
-        targets = []
+        y_values = []
         x_values, _ = torch.sort(x_values, dim=1)
         for i in range(self.batch_size):
             # Randomize kernel if needed for experiment
             if self.randomize_kernel_params:
                 self.randomize_k_params()
-            targets.append(self._attempt_sample(x_values, i))
-        targets = torch.stack(targets).float()
+            y_values.append(self._attempt_sample(x_values, i))
+        y_values = torch.stack(y_values).float()
 
         # Randomly select context points
         idx = torch.randperm(x_values.shape[1])
@@ -138,11 +137,11 @@ class GPDataGenerator(object):
 
         # Observations
         x_context = x_values[:, context_idx]
-        y_context = targets[:, context_idx]
+        y_context = y_values[:, context_idx]
 
         # Targets
         x_target = x_values
-        y_target = targets
+        y_target = y_values
 
         return NPTuple(x_context, y_context, x_target, y_target)
 
