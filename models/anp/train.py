@@ -14,7 +14,7 @@ np.random.seed(seed)
 random.seed(seed)
 
 RUNNING_AVG_LEN = 200
-PLOT_FREQ = 2
+PLOT_FREQ = 300
 
 
 def train_single_epoch(model, optimizer, batch, device):
@@ -62,9 +62,9 @@ def train_1d(
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
     # Keep track of running average losses for plotting
-    losses_hist = {"NLL": []}
+    losses_hist = {"NLL": (RUNNING_AVG_LEN, [])}
     if uses_kl:
-        losses_hist["KL"] = []
+        losses_hist["KL"] = (RUNNING_AVG_LEN, [])
         running_kl = deque(maxlen=RUNNING_AVG_LEN)
     running_nll = deque(maxlen=RUNNING_AVG_LEN)
 
@@ -76,10 +76,10 @@ def train_1d(
             running_kl.append(kl)
 
         if epoch % RUNNING_AVG_LEN == 0:
-            losses_hist["NLL"].append(mean(running_nll))
+            losses_hist["NLL"][1].append(mean(running_nll))
             if uses_kl:
-                losses_hist["KL"].append(mean(running_kl))
-            plot_losses(losses_hist, RUNNING_AVG_LEN)
+                losses_hist["KL"][1].append(mean(running_kl))
+            plot_losses(losses_hist)
 
         if epoch % PLOT_FREQ == 0:
             val_batch = test_gen.generate_batch()
@@ -138,7 +138,7 @@ def train_2d(
     show_mean=True,
     show_std=True,
 ):
-    device = torch.device("cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)

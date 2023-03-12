@@ -1,8 +1,14 @@
 import torch
 from torch import nn
 from torch.distributions import Normal, Independent
-from utils.attention import SelfAttention
-from utils import BatchMLP, BatchLinear, gaussian_log_prob, kl_div, Attention
+from utils import (
+    BatchMLP,
+    BatchLinear,
+    gaussian_log_prob,
+    kl_div,
+    Attention,
+    SelfAttention,
+)
 
 
 class DeterministicEncoder(nn.Module):
@@ -43,13 +49,15 @@ class DeterministicEncoder(nn.Module):
         context = torch.cat([context_x, context_y], dim=-1)
         encoded_context = self.mlp(context)
 
-        # self-attention
+        # Self-attention
         if self.use_self_attention:
             encoded_context = self.self_attention(encoded_context)
 
         # If basic NP
         if self.attention.attention_type in ["uniform", "laplace"]:
             return self.attention(context_x, target_x, encoded_context)
+
+        # Cross-attention
         q = self.pre_attention_contexts(context_x)
         k = self.pre_attention_targets(target_x)
         output = self.attention(q, k, encoded_context)
