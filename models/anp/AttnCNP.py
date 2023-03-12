@@ -1,23 +1,30 @@
 from torch import nn
 from models.anp import DeterministicEncoder, Decoder
-from utils import gaussian_log_prob
+from utils import gaussian_log_prob, Attention
 
 
-class CNPModel(nn.Module):
-    """Conditional Neural Processes Model"""
+class AttnCNPModel(nn.Module):
+    """Attentive Conditional Neural Processes Model"""
 
     def __init__(
         self,
         x_dim=1,
         y_dim=1,
+        attention=Attention("multihead"),
         hidden_dim=128,
-        encoder_layers=4,
-        decoder_layers=2,
+        encoder_layers=6,
+        decoder_layers=4,
+        use_self_attention=False,
     ):
         super().__init__()
 
         self.encoder = DeterministicEncoder(
-            x_dim, y_dim, hidden_dim, n_mlp_layers=encoder_layers
+            x_dim,
+            y_dim,
+            hidden_dim,
+            attention,
+            n_mlp_layers=encoder_layers,
+            use_self_attention=use_self_attention,
         )
         self.decoder = Decoder(x_dim, y_dim, hidden_dim, n_mlp_layers=decoder_layers)
 

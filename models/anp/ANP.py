@@ -147,9 +147,9 @@ class ANPModel(nn.Module):
         attention,
         latent_dim=128,
         hidden_dim=128,
-        latent_encoder_layers=4,
-        deterministic_encoder_layers=4,
-        decoder_layers=2,
+        latent_encoder_layers=6,
+        deterministic_encoder_layers=6,
+        decoder_layers=4,
         use_self_attention=False,
     ):
         super(ANPModel, self).__init__()
