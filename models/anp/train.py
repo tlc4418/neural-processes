@@ -24,7 +24,7 @@ def train_single_epoch(model, optimizer, batch, device):
     _, _, _, loss, log_prob, kl = model(context_x, context_y, target_x, target_y)
     loss.backward()
     optimizer.step()
-    return log_prob.item(), kl.item()
+    return log_prob.item(), kl.item() if torch.is_tensor(kl) else None
 
 
 def evaluate(model, batch, device):
@@ -52,25 +52,33 @@ def train_1d(
     epochs=10000,
     train_gen=GPDataGenerator(),
     test_gen=GPDataGenerator(testing=True, batch_size=1),
+    uses_kl=True,
 ):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    if torch.backends.mps.is_available():
+        device = torch.device("mps")
     print(f"Using device: {device}")
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
     # Keep track of running average losses for plotting
-    losses_hist = {"NLL": [], "KL": []}
+    losses_hist = {"NLL": []}
+    if uses_kl:
+        losses_hist["KL"] = []
+        running_kl = deque(maxlen=RUNNING_AVG_LEN)
     running_nll = deque(maxlen=RUNNING_AVG_LEN)
-    running_kl = deque(maxlen=RUNNING_AVG_LEN)
+
     for epoch in range(epochs):
         batch = train_gen.generate_batch()
         log_prob, kl = train_single_epoch(model, optimizer, batch, device)
         running_nll.append(-log_prob)
-        running_kl.append(kl)
+        if uses_kl:
+            running_kl.append(kl)
 
         if epoch % RUNNING_AVG_LEN == 0:
             losses_hist["NLL"].append(mean(running_nll))
-            losses_hist["KL"].append(mean(running_kl))
+            if uses_kl:
+                losses_hist["KL"].append(mean(running_kl))
             plot_losses(losses_hist, RUNNING_AVG_LEN)
 
         if epoch % PLOT_FREQ == 0:
@@ -95,7 +103,7 @@ def train_1d(
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                 },
-                "anp_model.pt",
+                "model_test.pt",
             )
 
 
