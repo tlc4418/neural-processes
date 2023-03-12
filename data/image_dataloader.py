@@ -6,7 +6,6 @@ from data.gp_dataloader import NPTuple
 
 MAX_N_CONTEXT = 200
 MIN_N_CONTEXT = 3
-TEST_N_CONTEXT = 100
 
 
 class ImageDataProcessor(object):
@@ -20,22 +19,26 @@ class ImageDataProcessor(object):
         self.max_n_context = max_n_context
         self.testing = testing
 
-    def process_batch(self, img_batch, n_context=None):
+    def process_batch(self, img_batch, test_context=None):
         """Process a batch of images into a batch of NP tuples"""
 
-        if n_context and not self.testing:
-            raise ValueError("n_context can only be provided at test time")
+        if test_context and not self.testing:
+            raise ValueError("test_context can only be provided at test time")
 
         B, C, H, W = img_batch.shape
         n_all_points = H * W
 
-        # If num context is not provided, sample it if at train time,
-        # else use all points
+        # If context is not provided, sample it randomly
         n_context = (
-            (n_context or n_all_points)
-            if self.testing
+            test_context
+            if test_context and self.testing
             else random.randint(self.min_n_context, self.max_n_context)
         )
+        if test_context == "top half":
+            n_context = n_all_points // 2
+        elif test_context == "all":
+            n_context = n_all_points
+
         n_total_target = (
             n_all_points
             if self.testing
@@ -44,8 +47,9 @@ class ImageDataProcessor(object):
 
         # Get all indices and shuffle them
         idxs = np.arange(n_all_points).reshape(1, n_all_points).repeat(B, axis=0)
-        for idx in range(B):
-            np.random.shuffle(idxs[idx])
+        if not isinstance(test_context, str):
+            for idx in range(B):
+                np.random.shuffle(idxs[idx])
         idxs = torch.from_numpy(idxs)
 
         # Calculate and separate xs
@@ -62,6 +66,7 @@ class ImageDataProcessor(object):
         )
 
         # Calculate and separate ys
+        img_batch = torch.permute(img_batch, (0, 2, 3, 1))
         img_flat = img_batch.view(B, -1, C)
         y_context = torch.take_along_dim(
             img_flat, idxs[:, :n_context].unsqueeze(2), dim=1
@@ -74,33 +79,33 @@ class ImageDataProcessor(object):
         x_context = 2 * x_context / (H - 1) - 1
         x_target = 2 * x_target / (H - 1) - 1
 
-        # Rescale ys to [-0.5, 0.5], note: pixels are in [0, 1] for MNIST
+        # Rescale ys to [-0.5, 0.5], note: pixels are in [0, 1]
         y_context = y_context - 0.5
         y_target = y_target - 0.5
 
         return NPTuple(x_context, y_context, x_target, y_target), img_batch
 
 
-def get_masks(xs, ys, img_size):
+def get_masks(xs, ys, img_size, rescale_y=False):
     """Get masks from NP tuple points"""
 
-    batch_size = xs.shape[0]
+    B, N, C = ys.shape
 
     # Rescale xs to [H, W]
     xs = (xs + 1) * (img_size - 1) / 2
     xs = xs.round().long()
 
-    xs_mask = torch.zeros(batch_size, img_size, img_size)
-    for i in range(batch_size):
-        for j in range(xs.shape[1]):
+    xs_mask = torch.zeros(B, img_size, img_size)
+    for i in range(B):
+        for j in range(N):
             xs_mask[i, xs[i, j, 0], xs[i, j, 1]] = 1
 
-    # Will need to rescale ys to 255 and add channel for multi-channel images
-    ys = ys + 0.5
+    if rescale_y:
+        ys = ys + 0.5
 
-    ys_mask = torch.zeros(batch_size, img_size, img_size)
-    for i in range(batch_size):
-        for j in range(ys.shape[1]):
-            ys_mask[i, xs[i, j, 0], xs[i, j, 1]] = ys[i, j]
+    ys_mask = torch.zeros(B, img_size, img_size, C)
+    for i in range(B):
+        for j in range(N):
+            ys_mask[i, xs[i, j, 0], xs[i, j, 1], :] = ys[i, j, :]
 
     return xs_mask, ys_mask
