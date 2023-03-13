@@ -13,7 +13,7 @@ MAX_N_CONTEXT = 100
 LENGTH_SCALE = 0.4
 TEST_N_TARGET = 400
 BATCH_SIZE = 16
-NOISE_LEVEL = 2e-2**2
+NOISE_LEVEL = (2e-2) ** 2
 
 # ANP random kernel bounds
 MIN_KERNEL_SCALE = 0.1
@@ -91,7 +91,7 @@ class GPDataGenerator(object):
         if not randomize_kernel_params:
             for p in kernel.hyperparameters:
                 kernel.set_params(**{f"{p.name}_bounds": "fixed"})
-        self.gp = GaussianProcessRegressor(kernel=kernel)
+        self.gp = GaussianProcessRegressor(kernel=kernel, alpha=0.0)
         self.randomize_kernel_params = randomize_kernel_params
         self.fix_context = fix_context
         self.batch_size = batch_size
@@ -108,6 +108,7 @@ class GPDataGenerator(object):
         # Evenly distributed x values at test time
         if self.testing:
             n_target = TEST_N_TARGET
+            n_total = n_target
             x_values = (
                 torch.linspace(-2, 2, n_target)
                 .unsqueeze(0)
@@ -117,20 +118,18 @@ class GPDataGenerator(object):
         # Random x values at train time
         else:
             n_target = np.random.randint(0, self.max_n_context - n_context + 1)
-            x_values = (
-                torch.rand(self.batch_size, n_context + n_target, 1) * (MAX_X - MIN_X)
-                + MIN_X
-            )
+            n_total = n_context + n_target
+            x_values = torch.rand(self.batch_size, n_total, 1) * (MAX_X - MIN_X) + MIN_X
 
         # Sample GP targets
-        targets = []
+        y_values = []
         x_values, _ = torch.sort(x_values, dim=1)
         for i in range(self.batch_size):
             # Randomize kernel if needed for experiment
             if self.randomize_kernel_params:
                 self.randomize_k_params()
-            targets.append(torch.from_numpy(self.gp.sample_y(x_values[i], n_samples=1)))
-        targets = torch.stack(targets).float()
+            y_values.append(self._attempt_sample(x_values, i))
+        y_values = torch.stack(y_values).float()
 
         # Randomly select context points
         idx = torch.randperm(x_values.shape[1])
@@ -138,11 +137,11 @@ class GPDataGenerator(object):
 
         # Observations
         x_context = x_values[:, context_idx]
-        y_context = targets[:, context_idx]
+        y_context = y_values[:, context_idx]
 
         # Targets
         x_target = x_values
-        y_target = targets
+        y_target = y_values
 
         return NPTuple(x_context, y_context, x_target, y_target)
 
@@ -160,3 +159,28 @@ class GPDataGenerator(object):
                     kernel.set_params(
                         **{p.name: np.random.uniform(*p.bounds.squeeze())}
                     )
+
+    def _attempt_sample(self, x_values, idx, n_attempts=10):
+        """
+        Attempt to sample from the GP, if SVD does not converge,
+        try again with different x values
+        """
+
+        for _ in range(n_attempts):
+            try:
+                sample = torch.from_numpy(
+                    self.gp.sample_y(x_values[idx], n_samples=1, random_state=None)
+                )
+            except np.linalg.LinAlgError:
+                x_values[idx] = (
+                    torch.rand(x_values.shape[1], 1) * (MAX_X - MIN_X) + MIN_X
+                )
+                x_values[idx] = torch.sort(x_values[idx], dim=0)[0]
+                continue
+            else:
+                return sample
+        else:
+            raise np.linalg.LinAlgError(
+                f"Could not sample from GP after {n_attempts} attempts, "
+                "SVD did not converge."
+            )
