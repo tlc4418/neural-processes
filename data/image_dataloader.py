@@ -107,7 +107,7 @@ def get_masks(xs, ys, img_size, rescale_y=False, model_type="anp"):
         for j in range(N):
             xs_mask[i, xs[i, j, 0], xs[i, j, 1]] = 1
 
-    if rescale_y:
+    if model_type == "anp" and rescale_y:
         ys = ys + 0.5
 
     ys_mask = torch.zeros(B, img_size, img_size, C)
