@@ -11,8 +11,8 @@ class CNPModel(nn.Module):
         x_dim=1,
         y_dim=1,
         hidden_dim=128,
-        encoder_layers=4,
-        decoder_layers=2,
+        encoder_layers=3,
+        decoder_layers=5,
     ):
         super().__init__()
 

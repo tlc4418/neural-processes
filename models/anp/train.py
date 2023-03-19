@@ -14,7 +14,7 @@ np.random.seed(seed)
 random.seed(seed)
 
 RUNNING_AVG_LEN = 200
-PLOT_FREQ = 300
+PLOT_FREQ = 5
 
 
 def train_single_epoch(model, optimizer, batch, device):
@@ -137,8 +137,9 @@ def train_2d(
     lr=1e-4,
     show_mean=True,
     show_std=True,
+    model_type="anp",
 ):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     print(f"Using device: {device}")
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -155,13 +156,15 @@ def train_2d(
     total_iterations = 0
     for epoch in range(epochs):
         for idx, (img_batch, _) in enumerate(train_loader):
-            train_input, _ = train_processor.process_batch(img_batch)
+            train_input, _ = train_processor.process_batch(
+                img_batch, model_type=model_type
+            )
             log_prob, kl = train_single_epoch(model, optimizer, train_input, device)
             running_nll_train.append(-log_prob)
 
             if idx % RUNNING_AVG_LEN == 0:
                 losses_hist["Train NLL"][1].append(mean(running_nll_train))
-                plot_losses(losses_hist)
+                plot_losses(losses_hist, model_type)
                 print(
                     f"Epoch: {epoch} Iteration: {idx} Train NLL: {mean(running_nll_train):.4f}"
                 )
@@ -173,24 +176,26 @@ def train_2d(
                 data = []
                 for n_context in [10, 100, 1000, "top half"]:
                     val_input, _ = val_processor.process_batch(
-                        img_val_batch, test_context=n_context
+                        img_val_batch, test_context=n_context, model_type=model_type
                     )
                     eval_result = evaluate(model, val_input, device)
                     data.append(
                         prepare_plot_2d(eval_result) + (img_val_batch.shape[2],)
                     )
-                plot_2d_np_results(data, show_mean, show_std)
+                plot_2d_np_results(
+                    data, epoch, show_mean, show_std, model_type=model_type
+                )
 
                 torch.save(
                     {
                         "model_state_dict": model.state_dict(),
                         "optimizer_state_dict": optimizer.state_dict(),
                     },
-                    "anp_model_celeba.pt",
+                    f"poster_{model_type}_model_mnist.pt",
                 )
 
             np_val_batch, _ = val_processor.process_batch(
-                img_val_batch, test_context=100
+                img_val_batch, test_context=100, model_type=model_type
             )
             *_, log_prob = evaluate(model, np_val_batch, device)
             running_nll_val.append(-log_prob)

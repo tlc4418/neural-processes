@@ -19,7 +19,7 @@ class ImageDataProcessor(object):
         self.max_n_context = max_n_context
         self.testing = testing
 
-    def process_batch(self, img_batch, test_context=None):
+    def process_batch(self, img_batch, test_context=None, model_type="anp"):
         """Process a batch of images into a batch of NP tuples"""
 
         if test_context and not self.testing:
@@ -76,23 +76,30 @@ class ImageDataProcessor(object):
         )
 
         # Rescale xs to [-1, 1]
-        x_context = 2 * x_context / (H - 1) - 1
-        x_target = 2 * x_target / (H - 1) - 1
+        if model_type == "anp":
+            x_context = 2 * x_context / (H - 1) - 1
+            x_target = 2 * x_target / (H - 1) - 1
 
-        # Rescale ys to [-0.5, 0.5], note: pixels are in [0, 1]
-        y_context = y_context - 0.5
-        y_target = y_target - 0.5
+            # Rescale ys to [-0.5, 0.5], note: pixels are in [0, 1]
+            y_context = y_context - 0.5
+            y_target = y_target - 0.5
+        else:
+            x_context = x_context / (H - 1)
+            x_target = x_target / (H - 1)
 
         return NPTuple(x_context, y_context, x_target, y_target), img_batch
 
 
-def get_masks(xs, ys, img_size, rescale_y=False):
+def get_masks(xs, ys, img_size, rescale_y=False, model_type="anp"):
     """Get masks from NP tuple points"""
 
     B, N, C = ys.shape
 
     # Rescale xs to [H, W]
-    xs = (xs + 1) * (img_size - 1) / 2
+    if model_type == "anp":
+        xs = (xs + 1) * (img_size - 1) / 2
+    else:
+        xs = xs * (img_size - 1)
     xs = xs.round().long()
 
     xs_mask = torch.zeros(B, img_size, img_size)
