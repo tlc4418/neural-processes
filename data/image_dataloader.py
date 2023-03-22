@@ -50,7 +50,16 @@ class ImageDataProcessor(object):
         if not isinstance(test_context, str):
             for idx in range(B):
                 np.random.shuffle(idxs[idx])
-        idxs = torch.from_numpy(idxs)
+
+        # Get context and target indices
+        idxs_context = (
+            idxs[:, :n_context]
+            if not test_context == "left half"
+            else np.resize(idxs, (B, H, W))[:, :, : W // 2].reshape(B, -1)
+        )
+        idxs_target = idxs[:, :n_total_target]
+        idxs_context = torch.from_numpy(idxs_context)
+        idxs_target = torch.from_numpy(idxs_target)
 
         # Calculate and separate xs
         possible_idxs = (
@@ -59,21 +68,15 @@ class ImageDataProcessor(object):
             .repeat(B, 1, 1)
         )
         x_context = torch.take_along_dim(
-            possible_idxs, idxs[:, :n_context].unsqueeze(2), dim=1
+            possible_idxs, idxs_context.unsqueeze(2), dim=1
         )
-        x_target = torch.take_along_dim(
-            possible_idxs, idxs[:, :n_total_target].unsqueeze(2), dim=1
-        )
+        x_target = torch.take_along_dim(possible_idxs, idxs_target.unsqueeze(2), dim=1)
 
         # Calculate and separate ys
         img_batch = torch.permute(img_batch, (0, 2, 3, 1))
         img_flat = img_batch.view(B, -1, C)
-        y_context = torch.take_along_dim(
-            img_flat, idxs[:, :n_context].unsqueeze(2), dim=1
-        )
-        y_target = torch.take_along_dim(
-            img_flat, idxs[:, :n_total_target].unsqueeze(2), dim=1
-        )
+        y_context = torch.take_along_dim(img_flat, idxs_context.unsqueeze(2), dim=1)
+        y_target = torch.take_along_dim(img_flat, idxs_target.unsqueeze(2), dim=1)
 
         # Rescale xs to [-1, 1]
         if model_type == "anp":

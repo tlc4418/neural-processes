@@ -97,6 +97,6 @@ class LatentEncoder(nn.Module):
         # Bound and sigmoid
         std = 0.1 + 0.9 * torch.sigmoid(log_std)
 
-        # Reparameterization trick
-        z = mean + torch.randn_like(std) * std
+        distrib = torch.distributions.Normal(mean, std)
+        z = distrib.rsample()
         return z, mean, std
