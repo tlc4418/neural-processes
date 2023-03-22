@@ -27,10 +27,9 @@ def plot_np_results(target_x, target_y, context_x, context_y, pred_y, std, title
     plt.show()
 
 
-def plot_2d_np_results(data, show_mean=True, show_std=True):
+def plot_2d_np_results(data, epoch=0, show_mean=True, show_std=True, model_type="anp"):
     columns = len(data)
     rows = 3 - (not show_mean) - (not show_std)
-    print(f"Plotting {rows} rows and {columns} columns")
     # create suplots
     fig, axs = plt.subplots(rows, columns, figsize=(columns * 3, rows * 3))
 
@@ -38,7 +37,9 @@ def plot_2d_np_results(data, show_mean=True, show_std=True):
         context_x, context_y, target_x, distrib, mean, std, img_size = data[c]
 
         # Plot context in first row
-        context_mask = get_masks(context_x, context_y, img_size, rescale_y=True)[1][0]
+        context_mask = get_masks(
+            context_x, context_y, img_size, rescale_y=True, model_type=model_type
+        )[1][0]
         axs[0][c].imshow(
             context_mask.detach().cpu().numpy(),
             cmap=("Blues_r"),
@@ -48,7 +49,9 @@ def plot_2d_np_results(data, show_mean=True, show_std=True):
         # Plot mean
         if show_mean:
             mean_mask = (
-                get_masks(target_x, mean, img_size, rescale_y=True)[1][0]
+                get_masks(
+                    target_x, mean, img_size, rescale_y=True, model_type=model_type
+                )[1][0]
                 .detach()
                 .cpu()
                 .numpy()
@@ -58,7 +61,12 @@ def plot_2d_np_results(data, show_mean=True, show_std=True):
 
         # Plot std
         if show_std:
-            std_mask = get_masks(target_x, std, img_size)[1][0].detach().cpu().numpy()
+            std_mask = (
+                get_masks(target_x, std, img_size, model_type=model_type)[1][0]
+                .detach()
+                .cpu()
+                .numpy()
+            )
             axs[idx][c].imshow(std_mask, cmap="gray", vmax=1.0)
 
         # Remove ticks

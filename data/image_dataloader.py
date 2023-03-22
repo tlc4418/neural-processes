@@ -19,7 +19,7 @@ class ImageDataProcessor(object):
         self.max_n_context = max_n_context
         self.testing = testing
 
-    def process_batch(self, img_batch, test_context=None):
+    def process_batch(self, img_batch, test_context=None, model_type="anp"):
         """Process a batch of images into a batch of NP tuples"""
 
         if test_context and not self.testing:
@@ -50,7 +50,16 @@ class ImageDataProcessor(object):
         if not isinstance(test_context, str):
             for idx in range(B):
                 np.random.shuffle(idxs[idx])
-        idxs = torch.from_numpy(idxs)
+
+        # Get context and target indices
+        idxs_context = (
+            idxs[:, :n_context]
+            if not test_context == "left half"
+            else np.resize(idxs, (B, H, W))[:, :, : W // 2].reshape(B, -1)
+        )
+        idxs_target = idxs[:, :n_total_target]
+        idxs_context = torch.from_numpy(idxs_context)
+        idxs_target = torch.from_numpy(idxs_target)
 
         # Calculate and separate xs
         possible_idxs = (
@@ -59,40 +68,41 @@ class ImageDataProcessor(object):
             .repeat(B, 1, 1)
         )
         x_context = torch.take_along_dim(
-            possible_idxs, idxs[:, :n_context].unsqueeze(2), dim=1
+            possible_idxs, idxs_context.unsqueeze(2), dim=1
         )
-        x_target = torch.take_along_dim(
-            possible_idxs, idxs[:, :n_total_target].unsqueeze(2), dim=1
-        )
+        x_target = torch.take_along_dim(possible_idxs, idxs_target.unsqueeze(2), dim=1)
 
         # Calculate and separate ys
         img_batch = torch.permute(img_batch, (0, 2, 3, 1))
         img_flat = img_batch.view(B, -1, C)
-        y_context = torch.take_along_dim(
-            img_flat, idxs[:, :n_context].unsqueeze(2), dim=1
-        )
-        y_target = torch.take_along_dim(
-            img_flat, idxs[:, :n_total_target].unsqueeze(2), dim=1
-        )
+        y_context = torch.take_along_dim(img_flat, idxs_context.unsqueeze(2), dim=1)
+        y_target = torch.take_along_dim(img_flat, idxs_target.unsqueeze(2), dim=1)
 
         # Rescale xs to [-1, 1]
-        x_context = 2 * x_context / (H - 1) - 1
-        x_target = 2 * x_target / (H - 1) - 1
+        if model_type == "anp":
+            x_context = 2 * x_context / (H - 1) - 1
+            x_target = 2 * x_target / (H - 1) - 1
 
-        # Rescale ys to [-0.5, 0.5], note: pixels are in [0, 1]
-        y_context = y_context - 0.5
-        y_target = y_target - 0.5
+            # Rescale ys to [-0.5, 0.5], note: pixels are in [0, 1]
+            y_context = y_context - 0.5
+            y_target = y_target - 0.5
+        else:
+            x_context = x_context / (H - 1)
+            x_target = x_target / (H - 1)
 
         return NPTuple(x_context, y_context, x_target, y_target), img_batch
 
 
-def get_masks(xs, ys, img_size, rescale_y=False):
+def get_masks(xs, ys, img_size, rescale_y=False, model_type="anp"):
     """Get masks from NP tuple points"""
 
     B, N, C = ys.shape
 
     # Rescale xs to [H, W]
-    xs = (xs + 1) * (img_size - 1) / 2
+    if model_type == "anp":
+        xs = (xs + 1) * (img_size - 1) / 2
+    else:
+        xs = xs * (img_size - 1)
     xs = xs.round().long()
 
     xs_mask = torch.zeros(B, img_size, img_size)
@@ -100,7 +110,7 @@ def get_masks(xs, ys, img_size, rescale_y=False):
         for j in range(N):
             xs_mask[i, xs[i, j, 0], xs[i, j, 1]] = 1
 
-    if rescale_y:
+    if model_type == "anp" and rescale_y:
         ys = ys + 0.5
 
     ys_mask = torch.zeros(B, img_size, img_size, C)

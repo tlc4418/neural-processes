@@ -42,4 +42,4 @@ class AttnCNPModel(nn.Module):
         kl = None
 
         # Returning mean, std, loss, log_prob, kl
-        return distrib, mean, std, -log_prob, log_prob, kl
+        return distrib, mean, std, -log_prob if log_prob else None, log_prob, kl

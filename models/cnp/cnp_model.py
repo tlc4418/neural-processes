@@ -11,8 +11,8 @@ class CNPModel(nn.Module):
         x_dim=1,
         y_dim=1,
         hidden_dim=128,
-        encoder_layers=4,
-        decoder_layers=2,
+        encoder_layers=3,
+        decoder_layers=5,
     ):
         super().__init__()
 
@@ -35,4 +35,4 @@ class CNPModel(nn.Module):
         kl = None
 
         # Returning mean, std, loss, log_prob, kl
-        return distrib, mean, std, -log_prob, log_prob, kl
+        return distrib, mean, std, -log_prob if log_prob else None, log_prob, kl
